@@ -492,25 +492,25 @@ let scenes = {
   // ENDINGS
   endgame_good: {
     title: "The Truth Prevails",
-    text: "ENDING: REDEMPTION\n\nWith Maya's help and the evidence you gathered, you expose the corruption. The state police raid Pine Falls. Mayor Stone is arrested. Councilwoman Helen Greene disappears before she can be caught, but her network falls apart.\n\nYou regain your memory slowly. You were a journalist named ALEX. You came here to expose a conspiracy. You succeeded.\n\nThe town begins to heal. Maya becomes the interim mayor. You decide whether to stay and rebuild, or leave to warn other towns.",
+    text: "ENDING: REDEMPTION\n\nWith Maya's help and the evidence you gathered, you expose the corruption. The state police raid Pine Falls. Mayor Stone is arrested. Councilwoman Helen Greene disappears, but her network falls apart. You regain your memory slowly—you're ALEX, a journalist who came here to expose a conspiracy and succeeded. The town begins to heal as Maya becomes interim mayor.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_justice: {
     title: "Justice Served",
-    text: "ENDING: THE WHISTLEBLOWER\n\nYou bring the evidence to the state police. They launch a full investigation. Council members are arrested. A trial follows.\n\nYou testify. Your memory returns fully as you speak the truth under oath. You were ALEX, a journalist who discovered a corruption ring.\n\nThe town is cleaned up. The guilty are punished. You become a hero.\n\nBut is it enough? Helen Greene remains at large. You receive threatening letters. The cost of truth is high.",
+    text: "ENDING: THE WHISTLEBLOWER\n\nYou bring the evidence to the state police. They launch a full investigation and arrest council members. You testify under oath, and your memory returns fully—you're ALEX, a journalist who discovered a corruption ring. The town is cleaned up and the guilty are punished. You become a hero. But Helen Greene remains at large, and you receive threatening letters. The cost of truth is high.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_expose: {
     title: "Headline News",
-    text: "ENDING: NATIONAL EXPOSURE\n\nYou contact the state newspaper. They investigate. The story breaks: 'SMALL TOWN'S CORRUPTION RING EXPOSED BY MISSING JOURNALIST'.\n\nYour face is on the front page. Your memory returns: You're ALEX, and you're finally vindicated.\n\nThe scandal goes national. Federal agents get involved. Pine Falls becomes infamous.\n\nYou're offered a book deal, a podcast, speaking engagements. But you feel hollow. You exposed the darkness, but at what cost?",
+    text: "ENDING: NATIONAL EXPOSURE\n\nYou contact the state newspaper and they investigate. The story breaks: 'SMALL TOWN'S CORRUPTION RING EXPOSED BY MISSING JOURNALIST.' Your face is on the front page and your memory returns—you're ALEX, finally vindicated. The scandal goes national and federal agents get involved. Pine Falls becomes infamous. You're offered a book deal and speaking engagements, but you feel hollow. You exposed the darkness, but at what cost?",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_dark: {
     title: "Power Corrupts",
-    text: "ENDING: THE DARK PATH\n\nYou use the evidence to seize control. With Helen's backing (or instead of her), you become the new power broker in Pine Falls.\n\nYour memory returns fully. You're ALEX. But ALEX is no longer a journalist seeking truth. You're a puppet master.\n\nThe conspiracy continues—just with different hands at the helm. You become what you swore to destroy.",
+    text: "ENDING: THE DARK PATH\n\nYou use the evidence to seize control. With Helen's backing, you become the new power broker in Pine Falls. Your memory returns fully—you're ALEX. But ALEX is no longer a journalist seeking truth. You've become a puppet master. The conspiracy continues, just with different hands at the helm. You've become what you swore to destroy.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 };
@@ -572,25 +572,30 @@ function drawRoundedRect(x, y, w, h, r) {
 }
 
 function wrapText(text, x, y, maxWidth) {
-  // Wrap text and return array of lines with y positions
-  let words = text.split(" ");
-  let lines = [];
-  let currentLine = "";
+  // Split by newlines first to preserve paragraph breaks
+  let paragraphs = text.split("\n");
+  let allLines = [];
 
-  for (let word of words) {
-    let testLine = currentLine + (currentLine ? " " : "") + word;
-    let w = textWidth(testLine);
+  for (let para of paragraphs) {
+    let words = para.split(" ");
+    let currentLine = "";
 
-    if (w > maxWidth && currentLine !== "") {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
+    for (let word of words) {
+      let testLine = currentLine + (currentLine ? " " : "") + word;
+      let w = textWidth(testLine);
+
+      if (w > maxWidth && currentLine !== "") {
+        allLines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
     }
+    if (currentLine) allLines.push(currentLine);
+    allLines.push(""); // Add empty line for paragraph break
   }
-  if (currentLine) lines.push(currentLine);
 
-  return lines;
+  return allLines;
 }
 
 function isEndingScene(sceneKey) {
@@ -643,12 +648,21 @@ function draw() {
   // Display story text (centered and wrapped)
   fill(200, 220, 255);
   textSize(13);
-  textAlign(CENTER);
+  textAlign(isEndingScene(gameState.currentScene) ? LEFT : CENTER);
   let textY = contentY + 75;
   let lines = wrapText(scene.text, contentX + 30, textY, contentWidth - 60);
 
   for (let line of lines) {
-    text(line, width / 2, textY);
+    if (line === "") {
+      // Skip empty lines for paragraph breaks
+      textY += 12;
+      continue;
+    }
+    if (isEndingScene(gameState.currentScene)) {
+      text(line, contentX + 40, textY);
+    } else {
+      text(line, width / 2, textY);
+    }
     textY += 24;
   }
 
@@ -664,6 +678,7 @@ function draw() {
     fill(255, 200, 50);
     textSize(12);
     textStyle(BOLD);
+    textAlign(CENTER);
     text("FINAL STATS", width / 2, textY + 35);
     textStyle(NORMAL);
 
@@ -680,7 +695,7 @@ function draw() {
   // Display choice buttons - pixel art style
   textSize(13);
   textAlign(CENTER);
-  let buttonY = contentY + contentHeight - 70;
+  let buttonY = contentY + contentHeight - 110;
 
   for (let i = 0; i < scene.choices.length; i++) {
     let choice = scene.choices[i];
@@ -1045,6 +1060,11 @@ function mousePressed() {
       mouseY > choice.y &&
       mouseY < choice.y + choice.h
     ) {
+      // Check if this is a "Start Over" choice - reset game first
+      if (choice.text === "Start Over") {
+        resetGame();
+      }
+
       // Apply effects
       if (choice.effects) {
         gameState.memory += choice.effects.memory || 0;
