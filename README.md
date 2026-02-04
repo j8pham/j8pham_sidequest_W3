@@ -29,6 +29,8 @@ Your choices matter across about 20 scenes and lead to 4 different endings: Rede
 
 - **Mouse Click**: Pick dialogue choices
 - **Space Bar**: Continue text / Start game
+- **S**: View Stats
+- **P**: Pause Menu
 
 ### Objective
 
