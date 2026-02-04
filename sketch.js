@@ -2,15 +2,25 @@
 // Track stats and uncover your true identity through choices
 
 let gameState = {
-  currentScene: "intro",
+  currentScene: "homeScreen",
   memory: 0, // How much you remember (0-100)
   trust: 50, // How much townspeople trust you (0-100)
   suspicion: 30, // How suspicious people are of you (0-100)
   inventory: [],
   history: [], // Track choices made
+  showStatsModal: false,
+  showPauseMenu: false,
+  canOpenMenu: true,
+  statsFlashCounter: 0, // Counts down from 300 frames for auto-close
 };
 
 let scenes = {
+  homeScreen: {
+    title: "A STRANGER IN TOWN",
+    text: "You wake up with no memory, in a small town called Pine Falls.\n\nWhat you do next could change everything.",
+    choices: [{ text: "Begin Your Journey", next: "intro", effects: {} }],
+  },
+
   intro: {
     title: "Awakening",
     text: "You wake up at the train station with no memory. Your pockets are empty except for a worn photograph of this town: Pine Falls. Where are you? Who are you?",
@@ -242,14 +252,14 @@ let scenes = {
     text: "The safe opens. Inside: evidence of a massive conspiracy. Photos of council members meeting with criminals. Coded messages. A letter addressed to you: 'If you're reading this, you uncovered the truth. The Mayor has ordered your elimination. Trust only Maya. —Your Editor'",
     choices: [
       {
-        text: "Go to the police (risky trust)",
-        next: "police_reveal",
-        effects: { memory: 50 },
-      },
-      {
         text: "Go to Maya with proof",
         next: "endgame_good",
         effects: { memory: 50, trust: 50 },
+      },
+      {
+        text: "Go directly to confront the Mayor",
+        next: "mayor_confrontation",
+        effects: { memory: 50, suspicion: 40 },
       },
     ],
   },
@@ -265,7 +275,7 @@ let scenes = {
       },
       {
         text: "Confront the Mayor directly",
-        next: "mayor_showdown",
+        next: "mayor_office",
         effects: { memory: 25, suspicion: 50 },
       },
     ],
@@ -482,36 +492,116 @@ let scenes = {
   // ENDINGS
   endgame_good: {
     title: "The Truth Prevails",
-    text: `ENDING: REDEMPTION\n\nWith Maya's help and the evidence you gathered, you expose the corruption. The state police raid Pine Falls. Mayor Stone is arrested. Councilwoman Helen Greene disappears before she can be caught, but her network falls apart.\n\nYou regain your memory slowly. You were a journalist named ALEX. You came here to expose a conspiracy. You succeeded.\n\nThe town begins to heal. Maya becomes the interim mayor. You decide whether to stay and rebuild, or leave to warn other towns.\n\nFinal Stats:\nMemory: ${gameState.memory}\nTrust: ${gameState.trust}\nSuspicion: ${gameState.suspicion}`,
+    text: "ENDING: REDEMPTION\n\nWith Maya's help and the evidence you gathered, you expose the corruption. The state police raid Pine Falls. Mayor Stone is arrested. Councilwoman Helen Greene disappears before she can be caught, but her network falls apart.\n\nYou regain your memory slowly. You were a journalist named ALEX. You came here to expose a conspiracy. You succeeded.\n\nThe town begins to heal. Maya becomes the interim mayor. You decide whether to stay and rebuild, or leave to warn other towns.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_justice: {
     title: "Justice Served",
-    text: `ENDING: THE WHISTLEBLOWER\n\nYou bring the evidence to the state police. They launch a full investigation. Council members are arrested. A trial follows.\n\nYou testify. Your memory returns fully as you speak the truth under oath. You were ALEX, a journalist who discovered a corruption ring.\n\nThe town is cleaned up. The guilty are punished. You become a hero.\n\nBut is it enough? Helen Greene remains at large. You receive threatening letters. The cost of truth is high.\n\nFinal Stats:\nMemory: ${gameState.memory}\nTrust: ${gameState.trust}\nSuspicion: ${gameState.suspicion}`,
+    text: "ENDING: THE WHISTLEBLOWER\n\nYou bring the evidence to the state police. They launch a full investigation. Council members are arrested. A trial follows.\n\nYou testify. Your memory returns fully as you speak the truth under oath. You were ALEX, a journalist who discovered a corruption ring.\n\nThe town is cleaned up. The guilty are punished. You become a hero.\n\nBut is it enough? Helen Greene remains at large. You receive threatening letters. The cost of truth is high.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_expose: {
     title: "Headline News",
-    text: `ENDING: NATIONAL EXPOSURE\n\nYou contact the state newspaper. They investigate. The story breaks: 'SMALL TOWN'S CORRUPTION RING EXPOSED BY MISSING JOURNALIST'.\n\nYour face is on the front page. Your memory returns: You're ALEX, and you're finally vindicated.\n\nThe scandal goes national. Federal agents get involved. Pine Falls becomes infamous.\n\nYou're offered a book deal, a podcast, speaking engagements. But you feel hollow. You exposed the darkness, but at what cost?\n\nFinal Stats:\nMemory: ${gameState.memory}\nTrust: ${gameState.trust}\nSuspicion: ${gameState.suspicion}`,
+    text: "ENDING: NATIONAL EXPOSURE\n\nYou contact the state newspaper. They investigate. The story breaks: 'SMALL TOWN'S CORRUPTION RING EXPOSED BY MISSING JOURNALIST'.\n\nYour face is on the front page. Your memory returns: You're ALEX, and you're finally vindicated.\n\nThe scandal goes national. Federal agents get involved. Pine Falls becomes infamous.\n\nYou're offered a book deal, a podcast, speaking engagements. But you feel hollow. You exposed the darkness, but at what cost?",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 
   endgame_dark: {
     title: "Power Corrupts",
-    text: `ENDING: THE DARK PATH\n\nYou use the evidence to seize control. With Helen's backing (or instead of her), you become the new power broker in Pine Falls.\n\nYour memory returns fully. You're ALEX. But ALEX is no longer a journalist seeking truth. You're a puppet master.\n\nThe conspiracy continues—just with different hands at the helm. You become what you swore to destroy.\n\nFinal Stats:\nMemory: ${gameState.memory}\nTrust: ${gameState.trust}\nSuspicion: ${gameState.suspicion}`,
+    text: "ENDING: THE DARK PATH\n\nYou use the evidence to seize control. With Helen's backing (or instead of her), you become the new power broker in Pine Falls.\n\nYour memory returns fully. You're ALEX. But ALEX is no longer a journalist seeking truth. You're a puppet master.\n\nThe conspiracy continues—just with different hands at the helm. You become what you swore to destroy.",
     choices: [{ text: "Start Over", next: "intro", effects: {} }],
   },
 };
 
 function setup() {
-  createCanvas(800, 600);
+  createCanvas(1000, 700);
   textSize(16);
+  // Load a pixel-style font
+  textFont("Courier New, monospace");
+}
+
+function getBackgroundColor() {
+  // Pixel art mystery theme - dark, moody retro colors
+  let r, g, b;
+
+  if (gameState.suspicion > 70) {
+    // High suspicion = deep purple/red danger
+    r = 139;
+    g = 35;
+    b = 69;
+  } else if (gameState.suspicion > 40) {
+    // Medium suspicion = dark blue/purple mystery
+    r = 47;
+    g = 79;
+    b = 126;
+  } else if (gameState.trust > 70) {
+    // High trust = warm brown/orange safe
+    r = 101;
+    g = 67;
+    b = 33;
+  } else if (gameState.memory > 70) {
+    // High memory = clear cyan/blue clarity
+    r = 33;
+    g = 150;
+    b = 243;
+  } else {
+    // Default mysterious deep purple
+    r = 25;
+    g = 25;
+    b = 51;
+  }
+
+  return color(r, g, b);
+}
+
+function drawRoundedRect(x, y, w, h, r) {
+  // Draw a rounded rectangle
+  beginShape();
+  vertex(x + r, y);
+  vertex(x + w - r, y);
+  quadraticVertex(x + w, y, x + w, y + r);
+  vertex(x + w, y + h - r);
+  quadraticVertex(x + w, y + h, x + w - r, y + h);
+  vertex(x + r, y + h);
+  quadraticVertex(x, y + h, x, y + h - r);
+  vertex(x, y + r);
+  quadraticVertex(x, y, x + r, y);
+  endShape();
+}
+
+function wrapText(text, x, y, maxWidth) {
+  // Wrap text and return array of lines with y positions
+  let words = text.split(" ");
+  let lines = [];
+  let currentLine = "";
+
+  for (let word of words) {
+    let testLine = currentLine + (currentLine ? " " : "") + word;
+    let w = textWidth(testLine);
+
+    if (w > maxWidth && currentLine !== "") {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  return lines;
+}
+
+function isEndingScene(sceneKey) {
+  // Check if scene is an ending scene
+  return sceneKey.startsWith("endgame_");
 }
 
 function draw() {
-  background(30, 30, 50); // Dark background
+  // Set background based on stats
+  let bgColor = getBackgroundColor();
+  background(bgColor);
 
   let scene = scenes[gameState.currentScene];
 
@@ -520,44 +610,88 @@ function draw() {
     return;
   }
 
-  // Display title
-  fill(200, 100, 200);
-  textSize(32);
-  textAlign(CENTER);
-  text(scene.title, width / 2, 40);
+  // Content area (centered box) - pixel art style
+  let contentX = width / 2 - 350;
+  let contentY = 30;
+  let contentWidth = 700;
+  let contentHeight = 640;
 
-  // Display story text
-  fill(220);
-  textSize(16);
-  textAlign(LEFT);
-  let y = 100;
-  let lines = scene.text.split("\n");
+  // Pixel art background with double border effect
+  fill(10, 10, 25);
+  rect(contentX, contentY, contentWidth, contentHeight);
+
+  // Outer border (thick pixel border)
+  stroke(255, 200, 50);
+  strokeWeight(4);
+  noFill();
+  rect(contentX, contentY, contentWidth, contentHeight);
+
+  // Inner border (accent)
+  stroke(100, 200, 255);
+  strokeWeight(2);
+  rect(contentX + 4, contentY + 4, contentWidth - 8, contentHeight - 8);
+  noStroke();
+
+  // Display title
+  fill(255, 200, 50);
+  textSize(28);
+  textAlign(CENTER);
+  textStyle(BOLD);
+  text(scene.title, width / 2, contentY + 35);
+  textStyle(NORMAL);
+
+  // Display story text (centered and wrapped)
+  fill(200, 220, 255);
+  textSize(13);
+  textAlign(CENTER);
+  let textY = contentY + 75;
+  let lines = wrapText(scene.text, contentX + 30, textY, contentWidth - 60);
+
   for (let line of lines) {
-    text(line, 40, y);
-    y += 25;
+    text(line, width / 2, textY);
+    textY += 24;
   }
 
-  // Display stats
-  fill(100, 200, 100);
-  textSize(12);
-  textAlign(LEFT);
-  y = height - 90;
-  text(`Memory: ${gameState.memory}%`, 20, y);
-  text(`Trust: ${gameState.trust}%`, 20, y + 20);
-  text(`Suspicion: ${gameState.suspicion}%`, 20, y + 40);
+  // If this is an ending scene, display final stats below the text
+  if (isEndingScene(gameState.currentScene)) {
+    // Separator line
+    stroke(100, 200, 255);
+    strokeWeight(2);
+    line(contentX + 40, textY + 10, contentX + contentWidth - 40, textY + 10);
+    noStroke();
 
-  // Display choices as buttons
-  fill(100, 150, 200);
-  textSize(14);
+    // Stats section
+    fill(255, 200, 50);
+    textSize(12);
+    textStyle(BOLD);
+    text("FINAL STATS", width / 2, textY + 35);
+    textStyle(NORMAL);
+
+    fill(200, 220, 255);
+    textSize(12);
+    textY += 55;
+    text(`MEMORY: ${gameState.memory}%`, width / 2, textY);
+    textY += 25;
+    text(`TRUST: ${gameState.trust}%`, width / 2, textY);
+    textY += 25;
+    text(`SUSPICION: ${gameState.suspicion}%`, width / 2, textY);
+  }
+
+  // Display choice buttons - pixel art style
+  textSize(13);
   textAlign(CENTER);
-  let buttonY = height - 120;
+  let buttonY = contentY + contentHeight - 70;
+
   for (let i = 0; i < scene.choices.length; i++) {
     let choice = scene.choices[i];
     let buttonX = width / 2;
-    let buttonWidth = 700;
-    let buttonHeight = 35;
+    let buttonWidth = 620;
+    let buttonHeight = 42;
 
-    // Draw button
+    // Draw pixel-style button with thick border
+    fill(50, 100, 200);
+    stroke(150, 200, 255);
+    strokeWeight(3);
     rect(
       buttonX - buttonWidth / 2,
       buttonY - buttonHeight / 2,
@@ -565,9 +699,20 @@ function draw() {
       buttonHeight,
     );
 
+    // Inner highlight
+    stroke(200, 255, 100);
+    strokeWeight(1);
+    rect(
+      buttonX - buttonWidth / 2 + 2,
+      buttonY - buttonHeight / 2 + 2,
+      buttonWidth - 4,
+      buttonHeight - 4,
+    );
+
     // Button text
     fill(0);
-    text(choice.text, buttonX, buttonY + 5);
+    noStroke();
+    text(choice.text, buttonX, buttonY + 3);
 
     // Store button info for click detection
     choice.x = buttonX - buttonWidth / 2;
@@ -575,12 +720,322 @@ function draw() {
     choice.w = buttonWidth;
     choice.h = buttonHeight;
 
+    buttonY += 54;
+  }
+
+  // Menu button (top right) - pixel style
+  if (
+    gameState.currentScene !== "homeScreen" &&
+    !gameState.showStatsModal &&
+    !gameState.showPauseMenu
+  ) {
     fill(100, 150, 200);
-    buttonY += 50;
+    stroke(150, 200, 255);
+    strokeWeight(2);
+    rect(width - 120, 20, 100, 40);
+
+    fill(255, 200, 50);
+    noStroke();
+    textSize(12);
+    textAlign(CENTER);
+    text("STATS (S)", width - 70, 48);
+  }
+
+  // Pause button (top left) - pixel style
+  if (
+    gameState.currentScene !== "homeScreen" &&
+    !gameState.showStatsModal &&
+    !gameState.showPauseMenu
+  ) {
+    fill(100, 150, 200);
+    stroke(150, 200, 255);
+    strokeWeight(2);
+    rect(20, 20, 100, 40);
+
+    fill(255, 200, 50);
+    noStroke();
+    textSize(12);
+    textAlign(CENTER);
+    text("PAUSE (P)", 70, 48);
+  }
+
+  // Draw stats modal if active
+  if (gameState.showStatsModal) {
+    drawStatsModal();
+  }
+
+  // Draw pause menu if active
+  if (gameState.showPauseMenu) {
+    drawPauseMenu();
   }
 }
 
+function drawStatsModal() {
+  // Dark overlay
+  fill(0, 0, 0, 200);
+  rect(0, 0, width, height);
+
+  // Modal box - pixel art style
+  let modalWidth = 500;
+  let modalHeight = 400;
+  let modalX = width / 2 - modalWidth / 2;
+  let modalY = height / 2 - modalHeight / 2;
+
+  fill(10, 10, 25);
+  stroke(255, 200, 50);
+  strokeWeight(4);
+  rect(modalX, modalY, modalWidth, modalHeight);
+
+  // Inner border
+  stroke(100, 200, 255);
+  strokeWeight(2);
+  rect(modalX + 4, modalY + 4, modalWidth - 8, modalHeight - 8);
+  noStroke();
+
+  // Title
+  fill(255, 200, 50);
+  textSize(32);
+  textAlign(CENTER);
+  textStyle(BOLD);
+  text("[ STATS ]", width / 2, modalY + 40);
+  textStyle(NORMAL);
+
+  // Stats display
+  fill(200, 220, 255);
+  textSize(16);
+  textAlign(LEFT);
+  let statY = modalY + 90;
+  let statX = modalX + 40;
+
+  // Memory stat
+  text("MEMORY:", statX, statY);
+  drawPixelStatBar(
+    statX,
+    statY + 15,
+    400,
+    20,
+    gameState.memory,
+    color(100, 200, 255),
+  );
+  text(`${gameState.memory}%`, statX + 420, statY + 32);
+
+  // Trust stat
+  statY += 70;
+  text("TRUST:", statX, statY);
+  drawPixelStatBar(
+    statX,
+    statY + 15,
+    400,
+    20,
+    gameState.trust,
+    color(100, 255, 100),
+  );
+  text(`${gameState.trust}%`, statX + 420, statY + 32);
+
+  // Suspicion stat
+  statY += 70;
+  text("SUSPICION:", statX, statY);
+  drawPixelStatBar(
+    statX,
+    statY + 15,
+    400,
+    20,
+    gameState.suspicion,
+    color(255, 100, 100),
+  );
+  text(`${gameState.suspicion}%`, statX + 420, statY + 32);
+
+  // Close instruction
+  fill(150, 150, 150);
+  textSize(12);
+  textAlign(CENTER);
+  text("PRESS S or ESC to close", width / 2, modalY + modalHeight - 20);
+}
+
+function drawStatBar(x, y, w, h, value, barColor) {
+  // Background bar
+  fill(50, 50, 70);
+  stroke(100, 100, 120);
+  strokeWeight(1);
+  rect(x, y, w, h);
+
+  // Value bar
+  fill(barColor);
+  noStroke();
+  let fillWidth = (value / 100) * w;
+  rect(x, y, fillWidth, h);
+}
+
+function drawPixelStatBar(x, y, w, h, value, barColor) {
+  // Pixel-style stat bar with borders
+  fill(25, 25, 50);
+  stroke(100, 150, 255);
+  strokeWeight(2);
+  rect(x, y, w, h);
+
+  // Value bar
+  fill(barColor);
+  noStroke();
+  let fillWidth = (value / 100) * w;
+  rect(x + 2, y + 2, fillWidth - 4, h - 4);
+}
+
+function drawPauseMenu() {
+  // Dark overlay
+  fill(0, 0, 0, 200);
+  rect(0, 0, width, height);
+
+  // Modal box - pixel art style
+  let modalWidth = 400;
+  let modalHeight = 300;
+  let modalX = width / 2 - modalWidth / 2;
+  let modalY = height / 2 - modalHeight / 2;
+
+  fill(10, 10, 25);
+  stroke(255, 200, 50);
+  strokeWeight(4);
+  rect(modalX, modalY, modalWidth, modalHeight);
+
+  // Inner border
+  stroke(100, 200, 255);
+  strokeWeight(2);
+  rect(modalX + 4, modalY + 4, modalWidth - 8, modalHeight - 8);
+  noStroke();
+
+  // Title
+  fill(255, 200, 50);
+  textSize(36);
+  textAlign(CENTER);
+  textStyle(BOLD);
+  text("[ PAUSED ]", width / 2, modalY + 50);
+  textStyle(NORMAL);
+
+  // Resume button
+  let buttonY = modalY + 100;
+  let buttonX = width / 2;
+  let buttonWidth = 300;
+  let buttonHeight = 50;
+
+  fill(100, 150, 200);
+  stroke(150, 200, 255);
+  strokeWeight(3);
+  rect(buttonX - buttonWidth / 2, buttonY, buttonWidth, buttonHeight);
+
+  fill(255, 200, 50);
+  noStroke();
+  textSize(16);
+  text("RESUME (P)", buttonX, buttonY + 32);
+
+  // Store button info
+  let resumeBtn = {
+    x: buttonX - buttonWidth / 2,
+    y: buttonY,
+    w: buttonWidth,
+    h: buttonHeight,
+    action: "resume",
+  };
+
+  // Go to Menu button
+  buttonY += 70;
+  fill(150, 100, 150);
+  stroke(200, 150, 200);
+  strokeWeight(3);
+  rect(buttonX - buttonWidth / 2, buttonY, buttonWidth, buttonHeight);
+
+  fill(255, 200, 50);
+  noStroke();
+  textSize(16);
+  text("GO TO MENU", buttonX, buttonY + 32);
+
+  let menuBtn = {
+    x: buttonX - buttonWidth / 2,
+    y: buttonY,
+    w: buttonWidth,
+    h: buttonHeight,
+    action: "menu",
+  };
+
+  // Restart button
+  buttonY += 70;
+  fill(200, 100, 100);
+  stroke(255, 150, 150);
+  strokeWeight(3);
+  rect(buttonX - buttonWidth / 2, buttonY, buttonWidth, buttonHeight);
+
+  fill(255, 200, 50);
+  noStroke();
+  textSize(16);
+  text("RESTART", buttonX, buttonY + 32);
+
+  let restartBtn = {
+    x: buttonX - buttonWidth / 2,
+    y: buttonY,
+    w: buttonWidth,
+    h: buttonHeight,
+    action: "restart",
+  };
+
+  // Store buttons globally for click detection
+  window.pauseMenuButtons = [resumeBtn, menuBtn, restartBtn];
+}
+
 function mousePressed() {
+  if (gameState.showPauseMenu) {
+    // Handle pause menu clicks
+    if (window.pauseMenuButtons) {
+      for (let btn of window.pauseMenuButtons) {
+        if (
+          mouseX > btn.x &&
+          mouseX < btn.x + btn.w &&
+          mouseY > btn.y &&
+          mouseY < btn.y + btn.h
+        ) {
+          if (btn.action === "resume") {
+            gameState.showPauseMenu = false;
+          } else if (btn.action === "menu") {
+            resetGame();
+            gameState.currentScene = "homeScreen";
+            gameState.showPauseMenu = false;
+          } else if (btn.action === "restart") {
+            resetGame();
+            gameState.currentScene = "intro";
+            gameState.showPauseMenu = false;
+          }
+          return;
+        }
+      }
+    }
+    return; // Don't process other clicks while pause menu is open
+  }
+
+  if (gameState.showStatsModal) {
+    return; // Don't process choices while stats modal is open
+  }
+
+  // Check if pause button was clicked
+  if (
+    gameState.currentScene !== "homeScreen" &&
+    mouseX > 20 &&
+    mouseX < 120 &&
+    mouseY > 20 &&
+    mouseY < 60
+  ) {
+    gameState.showPauseMenu = true;
+    return;
+  }
+
+  // Check if stats button was clicked
+  if (
+    gameState.currentScene !== "homeScreen" &&
+    mouseX > width - 120 &&
+    mouseX < width - 20 &&
+    mouseY > 20 &&
+    mouseY < 60
+  ) {
+    gameState.showStatsModal = true;
+    return;
+  }
+
   let scene = scenes[gameState.currentScene];
 
   for (let choice of scene.choices) {
@@ -609,7 +1064,35 @@ function mousePressed() {
       // Move to next scene
       gameState.currentScene = choice.next;
       gameState.history.push(choice.text);
+      gameState.showStatsModal = false; // Auto-close stats modal on choice
       break;
+    }
+  }
+}
+
+function resetGame() {
+  // Reset all stats and history
+  gameState.memory = 0;
+  gameState.trust = 50;
+  gameState.suspicion = 30;
+  gameState.inventory = [];
+  gameState.history = [];
+  gameState.showStatsModal = false;
+  gameState.showPauseMenu = false;
+}
+
+function keyPressed() {
+  // Press S or ESC to toggle stats modal
+  if (key.toLowerCase() === "s" || key === "Escape") {
+    if (gameState.currentScene !== "homeScreen" && !gameState.showPauseMenu) {
+      gameState.showStatsModal = !gameState.showStatsModal;
+    }
+  }
+
+  // Press P to toggle pause menu
+  if (key.toLowerCase() === "p") {
+    if (gameState.currentScene !== "homeScreen" && !gameState.showStatsModal) {
+      gameState.showPauseMenu = !gameState.showPauseMenu;
     }
   }
 }
